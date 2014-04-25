@@ -1,5 +1,7 @@
 ## Background
 
+This is heavily modified shellcodeexec in order to support gcc, mingw and visual studio.
+
 Most of the shellcode launchers out there, including proof of concepts part of many "security" books, detail how to allocate a memory page as readable/writable/executable on POSIX systems, copy over your shellcode and execute it. This works just fine. However, it is limited to POSIX, does not necessarily consider 64-bit architecture and Windows systems.
 
 ## Description
