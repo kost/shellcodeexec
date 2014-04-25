@@ -5,11 +5,12 @@ CFLAGS += -Wall -Os
 # CFLAGS += -DDEBUG=1
 # CFLAGS += -static
 CFLAGS64 += -fPIC 
+OUT ?= shellcodeexec
 
 32:
-	$(CC) shellcodeexec.c -o shellcodeexec $(CFLAGS)
-	$(STRIP) $(STRIPFLAGS) shellcodeexec
+	$(CC) shellcodeexec.c -o $(OUT) $(CFLAGS)
+	$(STRIP) $(STRIPFLAGS) $(OUT)
 
 64:
-	$(CC) shellcodeexec.c $(CFLAGS64) -o shellcodeexec $(CFLAGS)
-	$(STRIP) $(STRIPFLAGS) shellcodeexec
+	$(CC) shellcodeexec.c $(CFLAGS64) -o $(OUT) $(CFLAGS)
+	$(STRIP) $(STRIPFLAGS) $(OUT)
