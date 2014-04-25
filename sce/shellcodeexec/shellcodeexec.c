@@ -134,7 +134,10 @@ int sys_bineval(char *argv)
 	return 0;
 }
 
-#if defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || defined(WIN32)
+/* if windows */
+#if defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || defined(WIN32) 
+/* if mingw */
+#ifdef __MINGW32__ 
 LONG WINAPI VectoredHandler (struct _EXCEPTION_POINTERS *ExceptionInfo) {
 	PCONTEXT Context;
 	Context = ExceptionInfo->ContextRecord;
@@ -161,20 +164,12 @@ DWORD WINAPI exec_payload(LPVOID lpParameter)
 	__exec_payload(lpParameter);
 #else
 	DEBUG_PRINTF("Executing payload32\n");
-	#ifdef __MINGW32__ 
 	__asm__ (
 		"mov %0, %%eax\n"
 		"call *%%eax\n"
 		: // no output
 		: "m"(lpParameter) // input
 	);
-	#else
-	__asm
-	{
-		mov eax, [lpParameter]
-		call eax
-	}
-	#endif
 #endif
 fail:
 	DEBUG_PRINTF("Removing handler\n");
@@ -182,4 +177,39 @@ fail:
 
 	return 0;
 }
-#endif
+#else /* MINGW */
+
+#if defined(_WIN64)
+
+DWORD WINAPI exec_payload(LPVOID lpParameter)
+{
+	__try
+	{
+		__exec_payload(lpParameter);
+	}
+	__except(EXCEPTION_EXECUTE_HANDLER)
+	{
+	}
+
+	return 0;
+}
+#elif defined(_WIN32) || defined(__WIN32__) || defined(WIN32)
+DWORD WINAPI exec_payload(LPVOID lpParameter)
+{
+	__try
+	{
+		__asm
+		{
+			mov eax, [lpParameter]
+			call eax
+		}
+	}
+	__except(EXCEPTION_EXECUTE_HANDLER)
+	{
+	}
+
+	return 0;
+}
+#endif /* _WIN64 */
+#endif /* __MINGW__ */
+#endif /* if windows */
