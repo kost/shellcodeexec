@@ -1,5 +1,7 @@
 /*
 	shellcodeexec - Script to execute in memory a sequence of opcodes
+	Heavily rewritten by Vlatko Kosturjak, vlatko.kosturjak@gmail.com
+	Heavily based on:
 	Copyright (C) 2011  Bernardo Damele A. G.
 	web: http://bernardodamele.blogspot.com
 	email: bernardo.damele@gmail.com
@@ -21,18 +23,40 @@
 
 #include <sys/types.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
 
+#ifdef DEBUG
+#define DEBUG_PRINTF(fmt, args...)  \
+       fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __FUNCTION__, ##args)
+#else
+#define DEBUG_PRINTF(fmt, args...)   
+#endif
+
+#ifdef __MINGW32__
+#define _WIN32_WINNT 0x502 
+#endif
+
 #if defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || defined(WIN32)
 #include <windows.h>
 DWORD WINAPI exec_payload(LPVOID lpParameter);
+	#if defined(_WIN64)
+	void __exec_payload(LPVOID);
+	static DWORD64 handler_eip;
+	#else
+	static DWORD handler_eip;
+	#endif
 #else
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
+
+#ifndef CALL_FIRST
+#define CALL_FIRST 1 
 #endif
 
 int sys_bineval(char *argv);
@@ -40,7 +64,7 @@ int sys_bineval(char *argv);
 int main(int argc, char *argv[])
 {
 	if (argc < 2) {
-		printf("Run:\n\tshellcodeexec <alphanumeric-encoded shellcode>\n");
+		printf("Run:\n\t%s <alphanumeric-encoded shellcode>\n",argv[0]);
 		exit(-1);
 	}
 
@@ -66,14 +90,18 @@ int sys_bineval(char *argv)
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || defined(WIN32)
 	// allocate a +rwx memory page
+	DEBUG_PRINTF("Allocating RWX memory...\n");
 	code = (char *) VirtualAlloc(NULL, len+1, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 
 	// copy over the shellcode
+	DEBUG_PRINTF("Copying shellcode\n");
 	strncpy(code, argv, len);
 
 	// execute it by ASM code defined in exec_payload function
+	DEBUG_PRINTF("Executing shellcode\n");
 	WaitForSingleObject(CreateThread(NULL, 0, exec_payload, code, 0, &pID), INFINITE);
 #else
+	DEBUG_PRINTF("Performing fork...\n");
 	pID = fork();
 	if(pID<0)
 		return 1;
@@ -84,15 +112,18 @@ int sys_bineval(char *argv)
 		page_size = (len+page_size) & ~(page_size);	// align to page boundary
 
 		// mmap an +rwx memory page
+		DEBUG_PRINTF("Mmaping memory page (+rwx)\n");
 		addr = mmap(0, page_size, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_SHARED|MAP_ANON, 0, 0);
 
 		if (addr == MAP_FAILED)
 			return 1;
 
 		// copy over the shellcode
+		DEBUG_PRINTF("Copying shellcode\n");
 		strncpy((char *)addr, argv, len);
 
 		// execute it
+		DEBUG_PRINTF("Executing shellcode\n");
 		((void (*)(void))addr)();
 	}
 
@@ -103,35 +134,51 @@ int sys_bineval(char *argv)
 	return 0;
 }
 
-#if defined(_WIN64)
-void __exec_payload(LPVOID);
-
-DWORD WINAPI exec_payload(LPVOID lpParameter)
-{
-	__try
-	{
-		__exec_payload(lpParameter);
-	}
-	__except(EXCEPTION_EXECUTE_HANDLER)
-	{
-	}
-
-	return 0;
+#if defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || defined(WIN32)
+LONG WINAPI VectoredHandler (struct _EXCEPTION_POINTERS *ExceptionInfo) {
+	PCONTEXT Context;
+	Context = ExceptionInfo->ContextRecord;
+	DEBUG_PRINTF("Exception occured. Entered into Exception Handler.\n");
+#ifdef _AMD64_
+	Context->Rip = handler_eip;
+#else
+	Context->Eip = handler_eip;
+#endif    
+	DEBUG_PRINTF("Returning from Exception handler\n");
+	return EXCEPTION_CONTINUE_EXECUTION;
 }
-#elif defined(_WIN32) || defined(__WIN32__) || defined(WIN32)
+
 DWORD WINAPI exec_payload(LPVOID lpParameter)
 {
-	__try
+	PVOID h;
+	handler_eip = &&fail;
+
+	DEBUG_PRINTF("Adding handler\n");
+	h = AddVectoredExceptionHandler(CALL_FIRST,VectoredHandler);
+	DEBUG_PRINTF("Executing payload\n");
+#if defined(_WIN64)
+	DEBUG_PRINTF("Executing payload64\n");
+	__exec_payload(lpParameter);
+#else
+	DEBUG_PRINTF("Executing payload32\n");
+	#ifdef __MINGW32__ 
+	__asm__ (
+		"mov %0, %%eax\n"
+		"call *%%eax\n"
+		: // no output
+		: "m"(lpParameter) // input
+	);
+	#else
+	__asm
 	{
-		__asm
-		{
-			mov eax, [lpParameter]
-			call eax
-		}
+		mov eax, [lpParameter]
+		call eax
 	}
-	__except(EXCEPTION_EXECUTE_HANDLER)
-	{
-	}
+	#endif
+#endif
+fail:
+	DEBUG_PRINTF("Removing handler\n");
+	RemoveVectoredExceptionHandler(h);
 
 	return 0;
 }
