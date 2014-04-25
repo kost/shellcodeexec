@@ -1,7 +1,15 @@
+CC ?= gcc
+STRIP ?= strip
+# STRIPFLAGS += -sx
+CFLAGS += -Wall -Os 
+# CFLAGS += -DDEBUG=1
+# CFLAGS += -static
+CFLAGS64 += -fPIC 
+
 32:
-	gcc -Wall -Os shellcodeexec.c -o shellcodeexec
-	strip -sx shellcodeexec
+	$(CC) shellcodeexec.c -o shellcodeexec $(CFLAGS)
+	$(STRIP) $(STRIPFLAGS) shellcodeexec
 
 64:
-	gcc -Wall -Os shellcodeexec.c -fPIC -o shellcodeexec
-	strip -sx shellcodeexec
+	$(CC) shellcodeexec.c $(CFLAGS64) -o shellcodeexec $(CFLAGS)
+	$(STRIP) $(STRIPFLAGS) shellcodeexec
