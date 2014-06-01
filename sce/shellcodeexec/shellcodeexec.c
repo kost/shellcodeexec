@@ -29,11 +29,19 @@
 #include <time.h>
 #include <ctype.h>
 
+/* Microsoft Visual Studio have different way of specifying variable number of args */
 #ifdef DEBUG
-#define DEBUG_PRINTF(fmt, args...)  \
-       fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __FUNCTION__, ##args)
+ #ifdef _MSC_VER
+ #define DEBUG_PRINTF(fmt, ...) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
+ #else
+ #define DEBUG_PRINTF(fmt, args...) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __FUNCTION__, ##args)
+ #endif
 #else
-#define DEBUG_PRINTF(fmt, args...)   
+ #ifdef _MSC_VER
+ #define DEBUG_PRINTF(fmt, ...)
+ #else
+ #define DEBUG_PRINTF(fmt, args...)
+ #endif
 #endif
 
 #ifdef __MINGW32__
