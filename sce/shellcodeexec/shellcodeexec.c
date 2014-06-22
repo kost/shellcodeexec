@@ -169,7 +169,12 @@ DWORD WINAPI exec_payload(LPVOID lpParameter)
 	DEBUG_PRINTF("Executing payload\n");
 #if defined(_WIN64)
 	DEBUG_PRINTF("Executing payload64\n");
-	__exec_payload(lpParameter);
+	__asm__ (
+		"mov %0, %%rax\n"
+		"call *%%rax\n"
+		: // no output
+		: "m"(lpParameter) // input
+	);
 #else
 	DEBUG_PRINTF("Executing payload32\n");
 	__asm__ (
